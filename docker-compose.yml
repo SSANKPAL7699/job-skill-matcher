@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  app:
+    # "build: ." means use the Dockerfile in the current folder
+    # to build the container image
+    build: .
+
+    # Map port 8000 on your Mac to port 8000 inside the container
+    # Format is "your-mac-port:container-port"
+    # So when you visit localhost:8000, it goes to port 8000 inside Docker
+    ports:
+      - "8000:8000"
+
+    # If the container crashes, automatically restart it
+    # "unless-stopped" means keep restarting unless YOU manually stop it
+    restart: unless-stopped
+
+    # Mount your local code folder into the container
+    # This means when you edit code on your Mac,
+    # the container sees the changes instantly without rebuilding
+    volumes:
+      - .:/app

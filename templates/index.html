@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Skill Matcher</title>
+  <style>
+    /* Reset default browser styles */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Page background and font */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fa;
+      color: #111;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    /* Page header */
+    .header { max-width: 1100px; margin: 0 auto 24px; }
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { color: #666; font-size: 14px; }
+
+    /* Two column layout for the text areas */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* On small screens stack the columns vertically */
+    @media(max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+    /* White card boxes */
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      border: 1px solid #e8e8e8;
+    }
+
+    /* Form labels */
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #444;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    /* Text input areas */
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 220px;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.6;
+    }
+    textarea:focus { border-color: #4f46e5; }
+
+    /* Analyze button */
+    .btn-wrap { max-width: 1100px; margin: 0 auto; }
+    button {
+      margin-top: 16px;
+      width: 100%;
+      padding: 14px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #4338ca; }
+
+    /* Big score circle in the middle of results card */
+    .score-circle {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .score-num  { font-size: 34px; font-weight: 700; line-height: 1; }
+    .score-lbl  { font-size: 11px; margin-top: 3px; opacity: 0.8; }
+
+    /* Color themes for grade */
+    .green-bg { background: #dcfce7; color: #166534; }
+    .blue-bg  { background: #dbeafe; color: #1e40af; }
+    .amber-bg { background: #fef9c3; color: #854d0e; }
+    .red-bg   { background: #fee2e2; color: #991b1b; }
+
+    /* Grade text below circle */
+    .grade { text-align: center; font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+
+    /* Sub score boxes: Skill overlap / Context match / Skills matched */
+    .sub-scores { display: flex; gap: 12px; margin-bottom: 20px; }
+    .sub-score  {
+      flex: 1; background: #f8f8f8; border-radius: 8px;
+      padding: 10px; text-align: center;
+    }
+    .sub-score .val { font-size: 20px; font-weight: 600; color: #4f46e5; }
+    .sub-score .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+
+    /* Skill chip rows */
+    .skill-section { margin-bottom: 16px; }
+    .skill-heading {
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dot       { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: #22c55e; }
+    .dot-red   { background: #ef4444; }
+    .dot-blue  { background: #3b82f6; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip  { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
+    .chip-green { background: #dcfce7; color: #166534; }
+    .chip-red   { background: #fee2e2; color: #991b1b; }
+    .chip-blue  { background: #dbeafe; color: #1e40af; }
+
+    /* Progress bars */
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .bar-lbl  { font-size: 12px; color: #666; width: 130px; flex-shrink: 0; }
+    .bar-bg   { flex: 1; background: #f0f0f0; border-radius: 6px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 6px; background: #4f46e5; }
+    .bar-val  { font-size: 12px; font-weight: 500; width: 36px; text-align: right; flex-shrink: 0; }
+
+    /* Tip boxes */
+    .tip {
+      background: #f8f8f8; border-radius: 8px;
+      padding: 10px 12px; font-size: 13px;
+      color: #555; margin-bottom: 8px;
+      border-left: 3px solid #4f46e5;
+      line-height: 1.5;
+    }
+
+    /* Info box explaining the score */
+    .info-box {
+      margin-top: 20px; padding: 14px;
+      background: #f0f4ff; border-radius: 10px;
+      font-size: 12px; color: #555; line-height: 1.7;
+    }
+    .info-box strong { color: #4f46e5; }
+
+    /* Footer note */
+    .footer {
+      max-width: 1100px; margin: 16px auto;
+      text-align: center; font

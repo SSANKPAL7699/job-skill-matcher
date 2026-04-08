@@ -1,0 +1,48 @@
+name: CI
+
+# This workflow runs automatically every time you push code to GitHub
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    # Use a fresh Ubuntu machine in the cloud to run our tests
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Download our code onto the Ubuntu machine
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Install Python 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # Step 3: Install our libraries
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Test that the matcher actually works
+      - name: Test matcher logic
+        run: |
+          python -c "
+          from app.matcher import match
+          result = match(
+            'Python developer with Docker AWS PostgreSQL Git experience',
+            'Looking for Python engineer with Docker Kubernetes AWS Git'
+          )
+          print('Score:', result['final_score'])
+          print('Matched:', result['matched_skills'])
+          print('Missing:', result['missing_skills'])
+          assert result['final_score'] > 0, 'Score should be greater than 0'
+          print('All tests passed!')
+          "
+
+      # Step 5: Make sure Docker can build our image without errors
+      - name: Build Docker image
+        run: docker build -t job-skill-matcher .
