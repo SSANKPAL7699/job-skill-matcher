@@ -16,7 +16,7 @@ app = FastAPI(
 # Jinja2Templates is the bridge between Python and HTML.
 # It lets us inject Python variables into our HTML page.
 # "directory='templates'" tells it to look in our templates/ folder.
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="templates", autoescape=True)
 
 
 # ── Route 1: Home page ───────────────────────────────────────────
