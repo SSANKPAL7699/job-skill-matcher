@@ -34,4 +34,4 @@ EXPOSE 8000
 # app.main:app = look in app/main.py for the variable called "app"
 # --host 0.0.0.0 = accept connections from outside the container
 # --port 8000 = listen on port 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
