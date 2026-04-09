@@ -1,100 +1,108 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from app.matcher import match
+import PyPDF2
+import io
 
-# ── Create the FastAPI app ───────────────────────────────────────
-# Think of this like turning on a web server.
-# The title and description show up in the auto-generated API docs at /docs
 app = FastAPI(
     title="Job Skill Matcher",
-    description="Match your resume against any job description. Get a score, matched skills, and missing skills.",
+    description="Match your resume against any job description.",
     version="1.0.0"
 )
 
-# ── Tell FastAPI where our HTML files live ───────────────────────
-# Jinja2Templates is the bridge between Python and HTML.
-# It lets us inject Python variables into our HTML page.
-# "directory='templates'" tells it to look in our templates/ folder.
 templates = Jinja2Templates(directory="templates")
 
 
-# ── Route 1: Home page ───────────────────────────────────────────
-# What is a route? It's a URL path that does something.
-# When someone visits http://localhost:8000/ this function runs.
-# @app.get means this route responds to GET requests
-# (GET = browser just loading a page, no data sent)
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    """
+    Takes raw PDF bytes and extracts all text from it.
+    
+    How it works:
+    1. PyPDF2 reads the PDF structure
+    2. It goes page by page and pulls out the text
+    3. We join all pages into one big string
+    
+    Why io.BytesIO?
+    PyPDF2 expects a file-like object, not raw bytes.
+    io.BytesIO wraps raw bytes into something that behaves like a file
+    so PyPDF2 can read it without saving to disk first.
+    """
+    pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() + "\n"
+    return text.strip()
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """
-    Just shows the empty form when someone first visits the site.
-    We pass 'request' to the template — Jinja2 always needs this.
-    """
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-# ── Route 2: Form submission ─────────────────────────────────────
-# @app.post means this route responds to POST requests
-# (POST = user submitting a form with data)
-# When user clicks "Analyze Match" button, this runs.
 @app.post("/match", response_class=HTMLResponse)
 async def match_form(
     request: Request,
-    resume: str = Form(...),           # grabs "resume" field from the form
-    job_description: str = Form(...)   # grabs "job_description" field from the form
-    # The ... means these fields are REQUIRED — app will error if they're empty
+    resume_text: str = Form(""),
+    resume_file: UploadFile = File(None),
+    job_description: str = Form(default="")
 ):
     """
-    1. Receives resume + job_description text from the HTML form
-    2. Passes them to our matcher.py match() function
-    3. Sends the results back to the same HTML page to display
-    """
-    result = match(resume, job_description)
+    Now accepts EITHER:
+    - A pasted resume text (resume_text field)
+    - An uploaded PDF file (resume_file field)
     
-    # We send back:
-    # - request (required by Jinja2)
-    # - result (the match analysis from matcher.py)
-    # - resume + job_description (so the text stays in the boxes after submit)
+    If both are provided, the uploaded file takes priority.
+    If neither is provided, we show an error.
+    """
+    # Try to get resume text from uploaded PDF first
+    final_resume = ""
+    error = None
+
+    if resume_file and resume_file.filename:
+        # User uploaded a file
+        if not resume_file.filename.endswith(".pdf"):
+            error = "Please upload a PDF file only."
+        else:
+            try:
+                file_bytes = await resume_file.read()
+                final_resume = extract_text_from_pdf(file_bytes)
+                if not final_resume:
+                    error = "Could not extract text from PDF. Try pasting your resume instead."
+            except Exception as e:
+                error = f"Error reading PDF: {str(e)}"
+    elif resume_text.strip():
+        # User pasted text
+        final_resume = resume_text.strip()
+    else:
+        error = "Please either upload your resume PDF or paste your resume text."
+
+    if error:
+        return templates.TemplateResponse("index.html", {
+            "request": request,
+            "error": error,
+            "job_description": job_description
+        })
+
+    result = match(final_resume, job_description)
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "result": result,
-        "resume": resume,
+        "resume": final_resume[:500] + "..." if len(final_resume) > 500 else final_resume,
         "job_description": job_description
     })
 
 
-# ── Route 3: JSON API endpoint ───────────────────────────────────
-# This is for developers who want to use our matcher programmatically
-# instead of through the browser UI.
-# 
-# Example: a Chrome extension could call this API silently
-# while you browse LinkedIn jobs and show you a match score.
-#
-# How to test this:
-# curl -X POST http://localhost:8000/api/match \
-#   -H "Content-Type: application/json" \
-#   -d '{"resume": "Python developer...", "job_description": "Need Python..."}'
 @app.post("/api/match")
 async def match_api(payload: dict):
-    """
-    Pure JSON API — no HTML, just raw data back and forth.
-    Useful for building other tools on top of our matcher.
-    """
     resume = payload.get("resume", "")
     job_description = payload.get("job_description", "")
-    
     if not resume or not job_description:
-        return {"error": "Both resume and job_description fields are required"}
-    
+        return {"error": "Both resume and job_description are required"}
     return match(resume, job_description)
 
 
-# ── Route 4: Health check ────────────────────────────────────────
-# This is a standard route every production API should have.
-# Docker, AWS, and monitoring tools ping this URL to check
-# if the app is alive and running.
-# If it returns {"status": "ok"} the app is healthy.
-# If it doesn't respond, something is wrong.
 @app.get("/health")
 async def health():
     return {"status": "ok"}
