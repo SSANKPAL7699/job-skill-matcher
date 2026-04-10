@@ -26,10 +26,8 @@ def extract_skills(text: str) -> dict:
     for item in sorted_skills:
         skill = item["skill"]
         category = item["category"]
-        # Skip single letter skills like "c", "r" — too many false positives
         if len(skill) <= 1:
             continue
-        # For very short skills (2-3 chars like "go", "aws") require word boundary
         pattern = r"\b" + re.escape(skill) + r"\b"
         if re.search(pattern, text):
             if skill not in found:
@@ -55,12 +53,16 @@ def compute_tfidf_similarity(resume: str, job_desc: str) -> float:
 
 
 def is_tech_document(text: str) -> bool:
-    """
-    Check if the text looks like a tech resume at all.
-    If fewer than 2 known tech skills are found, it's probably
-    not a tech resume — flag it as invalid input.
-    """
-    text_normalized = apply_aliases(normalize(text))
+    text_normalized = normalize(text)
+    general_tech = [
+        "software", "developer", "engineer", "programming", "coding",
+        "computer science", "backend", "frontend", "fullstack",
+        "web development", "mobile", "application", "technical",
+        "infrastructure", "api", "database", "github", "git"
+    ]
+    for keyword in general_tech:
+        if keyword in text_normalized:
+            return True
     tech_count = 0
     for item in ALL_SKILLS:
         skill = item["skill"]
@@ -77,11 +79,16 @@ def is_tech_document(text: str) -> bool:
 
 
 def is_tech_job(text: str) -> bool:
-    """
-    Check if the job description is a tech role.
-    Sales manager, DMV, etc. should not get tech scores.
-    """
     text_normalized = normalize(text)
+    general_tech = [
+        "software", "developer", "engineer", "programming", "coding",
+        "computer science", "backend", "frontend", "fullstack", "full stack",
+        "web development", "mobile", "application", "algorithm", "data",
+        "technical", "infrastructure", "architecture", "api", "database"
+    ]
+    for keyword in general_tech:
+        if keyword in text_normalized:
+            return True
     tech_count = 0
     for item in ALL_SKILLS:
         skill = item["skill"]
@@ -99,16 +106,14 @@ def is_tech_job(text: str) -> bool:
 
 def match(resume_text: str, job_text: str) -> dict:
 
-    # ── Validate inputs ──────────────────────────────────────────
     warning = None
 
     if not is_tech_document(resume_text):
         warning = "Your resume doesn't appear to contain technical skills. Results may not be meaningful."
 
     if not is_tech_job(job_text):
-        warning = "This job description doesn't appear to be a technical role. This tool is designed for software/tech jobs."
+        warning = "This job description doesn't appear to be a technical role. This tool is designed for software and tech jobs."
 
-    # ── Extract skills ───────────────────────────────────────────
     resume_skills = extract_skills(resume_text)
     job_skills = extract_skills(job_text)
 
@@ -124,23 +129,18 @@ def match(resume_text: str, job_text: str) -> dict:
     missing = job_flat - resume_flat
     bonus   = resume_flat - job_flat
 
-    # ── Skill score ──────────────────────────────────────────────
     if len(job_flat) > 0:
         skill_score = len(matched) / len(job_flat) * 100
     else:
         skill_score = 0.0
 
-    # ── TF-IDF score — penalize if job has no tech skills ────────
     tfidf_score = compute_tfidf_similarity(resume_text, job_text) * 100
 
-    # If the job description has no tech skills, cap tfidf contribution
     if len(job_flat) == 0:
         tfidf_score = tfidf_score * 0.1
 
-    # ── Final score ──────────────────────────────────────────────
     final_score = round((skill_score * 0.7) + (tfidf_score * 0.3), 1)
 
-    # ── Grade ────────────────────────────────────────────────────
     if final_score >= 75:
         grade = "Strong Match"
         grade_color = "green"
@@ -154,16 +154,20 @@ def match(resume_text: str, job_text: str) -> dict:
         grade = "Weak Match"
         grade_color = "red"
 
-    # ── Tips ─────────────────────────────────────────────────────
     tips = []
+
+    if len(job_flat) == 0:
+        tips.append("No tech skills detected in this job description. This tool works best for software and tech roles.")
+    if len(resume_flat) == 0:
+        tips.append("No tech skills detected in your resume. Make sure your technical skills are clearly listed.")
     if warning:
-        tips.insert(0, f"⚠️ {warning}")
+        tips.insert(0, warning)
     if missing:
         top_missing = list(missing)[:5]
         tips.append(f"Add these missing skills to your resume if you have them: {', '.join(top_missing)}")
     if final_score < 50:
         tips.append("Tailor your resume bullet points to use exact keywords from the job description.")
-    if len(matched) > 0:
+    if len(matched) > 0 and len(job_flat) > 0:
         tips.append(f"You already match {len(matched)} required skills — make sure these are prominently listed.")
     if bonus:
         tips.append(f"You have {len(bonus)} bonus skills not listed in the JD — these show breadth.")

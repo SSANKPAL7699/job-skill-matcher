@@ -38,11 +38,9 @@ async def match_form(
     final_resume = ""
     error = None
 
-    # Check job description first
     if not job_description or not job_description.strip():
         error = "Please paste a job description."
     else:
-        # Try PDF upload first
         if resume_file and resume_file.filename and resume_file.filename != "":
             if not resume_file.filename.lower().endswith(".pdf"):
                 error = "Please upload a PDF file only."
